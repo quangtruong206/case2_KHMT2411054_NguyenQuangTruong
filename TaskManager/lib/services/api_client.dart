@@ -1,8 +1,7 @@
-
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-import '../utils/constants.dart';
+const String baseUrl = 'http://10.0.2.2:3000/api';
 
 class ApiClient {
   static String? token;
@@ -11,104 +10,65 @@ class ApiClient {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-
-      if (token != null)
-        'Authorization': 'Bearer $token',
+      if (token != null) 'Authorization': 'Bearer $token',
     };
   }
 
-  Uri makeUri(String path) {
-    return Uri.parse(
-      '${AppConstants.baseUrl}$path',
-    );
-  }
-
-  dynamic handleResponse(http.Response response) {
-    if (response.body.isEmpty) {
-      if (response.statusCode < 200 ||
-          response.statusCode >= 300) {
-        throw Exception(
-          'Lỗi HTTP: ${response.statusCode}',
-        );
-      }
-      return null;
-    }
-
-    final data = jsonDecode(response.body);
-
-    if (response.statusCode < 200 ||
-        response.statusCode >= 300) {
-      final message = data is Map
-          ? data['message']?.toString()
-          : null;
-
-      throw Exception(
-        message ?? 'Lỗi HTTP: ${response.statusCode}',
-      );
-    }
-
-    return data;
-  }
-
-  // Lấy dữ liệu
-  Future<dynamic> get(String path) async {
+  // Phương thức GET
+  Future<dynamic> get(String endpoint) async {
     final response = await http.get(
-      makeUri(path),
+      Uri.parse('$baseUrl$endpoint'),
       headers: headers,
     );
-
-    return handleResponse(response);
+    return _handleResponse(response);
   }
 
-  // Thêm dữ liệu
-  Future<dynamic> post(
-      String path, {
-        Map<String, dynamic>? body,
-      }) async {
+  // Phương thức POST
+  Future<dynamic> post(String endpoint, {dynamic body}) async {
     final response = await http.post(
-      makeUri(path),
-      headers: headers,
-      body: jsonEncode(body ?? {}),
-    );
-
-    return handleResponse(response);
-  }
-
-  // Cập nhật dữ liệu
-  Future<dynamic> put(
-      String path, {
-        required Map<String, dynamic> body,
-      }) async {
-    final response = await http.put(
-      makeUri(path),
+      Uri.parse('$baseUrl$endpoint'),
       headers: headers,
       body: jsonEncode(body),
     );
-
-    return handleResponse(response);
+    return _handleResponse(response);
   }
 
-  // Cập nhật một phần dữ liệu
-  Future<dynamic> patch(
-      String path, {
-        Map<String, dynamic>? body,
-      }) async {
+  // Phương thức PUT
+  Future<dynamic> put(String endpoint, {dynamic body}) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _handleResponse(response);
+  }
+
+  // Phương thức PATCH
+  Future<dynamic> patch(String endpoint, {dynamic body}) async {
     final response = await http.patch(
-      makeUri(path),
+      Uri.parse('$baseUrl$endpoint'),
       headers: headers,
-      body: jsonEncode(body ?? {}),
+      body: jsonEncode(body),
     );
-
-    return handleResponse(response);
+    return _handleResponse(response);
   }
 
-  // Xóa dữ liệu
-  Future<dynamic> delete(String path) async {
+  // Phương thức DELETE
+  Future<dynamic> delete(String endpoint) async {
     final response = await http.delete(
-      makeUri(path),
+      Uri.parse('$baseUrl$endpoint'),
       headers: headers,
     );
+    return _handleResponse(response);
+  }
 
-    return handleResponse(response);
+  // Xử lý phản hồi dữ liệu
+  dynamic _handleResponse(http.Response response) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Lỗi API (${response.statusCode}): ${response.body}');
+    }
   }
 }
