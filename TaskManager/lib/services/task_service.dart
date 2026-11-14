@@ -14,6 +14,154 @@ class TaskService {
     return prefs.getString('token');
   }
 
+
+  // PHẦN C: PHÂN CÔNG VÀ CHIA SẺ
+
+  Future<dynamic> _partCRequest(
+      String method,
+      String endpoint, {
+        Map<String, dynamic>? body,
+      }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    final apiRoot = baseUrl.replaceFirst('/tasks', '');
+    final request = http.Request(
+      method,
+      Uri.parse('$apiRoot$endpoint'),
+    );
+
+    request.headers.addAll({
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    });
+
+    if (body != null) {
+      request.body = jsonEncode(body);
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isEmpty) return null;
+      return jsonDecode(response.body);
+    }
+
+    throw Exception(
+      'Lỗi API (${response.statusCode}): ${response.body}',
+    );
+  }
+
+  // Tìm kiếm người dùng
+  Future<List<TaskUser>> searchUsers(String keyword) async {
+    if (keyword.trim().length < 2) return [];
+
+    final result = await _partCRequest(
+      'GET',
+      '/users/search?q=${Uri.encodeQueryComponent(keyword.trim())}',
+    );
+
+    if (result is! List) return [];
+
+    return result
+        .map((e) => TaskUser.fromJson(e))
+        .where((user) => user.id.isNotEmpty)
+        .toList();
+  }
+
+  // Phân công người dùng vào công việc
+  Future<bool> assignUsers(
+      String taskId,
+      List<String> assigneeIds,
+      String? primaryAssigneeId,
+      ) async {
+    await _partCRequest(
+      'PUT',
+      '/tasks/$taskId/assignees',
+      body: {
+        'assigneeIds': assigneeIds,
+        'primaryAssigneeId': primaryAssigneeId,
+      },
+    );
+
+    return true;
+  }
+
+  // Lấy danh sách người được chia sẻ công việc
+  Future<List<TaskShare>> getTaskShares(String taskId) async {
+    final result = await _partCRequest(
+      'GET',
+      '/tasks/$taskId/shares',
+    );
+
+    final List<dynamic> items;
+
+    if (result is List) {
+      items = result;
+    } else if (result is Map && result['shares'] is List) {
+      items = result['shares'] as List;
+    } else {
+      items = [];
+    }
+
+    return items
+        .map((e) => TaskShare.fromJson(
+      Map<String, dynamic>.from(e),
+    ))
+        .toList();
+  }
+
+  // Chia sẻ công việc cho người dùng
+  Future<bool> shareTask(
+      String taskId,
+      String userId,
+      String permission,
+      ) async {
+    await _partCRequest(
+      'POST',
+      '/tasks/$taskId/shares',
+      body: {
+        'userId': userId,
+        'permission': permission,
+      },
+    );
+
+    return true;
+  }
+
+  // Thay đổi quyền chia sẻ
+  Future<bool> updateSharePermission(
+      String taskId,
+      String userId,
+      String permission,
+      ) async {
+    await _partCRequest(
+      'PATCH',
+      '/tasks/$taskId/shares/$userId',
+      body: {
+        'permission': permission,
+      },
+    );
+
+    return true;
+  }
+
+  // Thu hồi quyền chia sẻ
+  Future<bool> removeTaskShare(
+      String taskId,
+      String userId,
+      ) async {
+    await _partCRequest(
+      'DELETE',
+      '/tasks/$taskId/shares/$userId',
+    );
+
+    return true;
+  }
+
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');

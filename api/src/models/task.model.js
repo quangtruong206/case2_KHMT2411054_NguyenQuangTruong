@@ -22,17 +22,18 @@ const taskSchema = new mongoose.Schema(
     },
 
     // Danh sách người được giao
-    assigneeIds: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-      },
-    ],
+  assigneeIds: [
+  {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+],
 
-    // Người phụ trách chính
-    primaryAssigneeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
+primaryAssigneeId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: 'User',
+  default: null,
+},
 
     // Ngày bắt đầu
     startDate: {

@@ -5,7 +5,7 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const authRoutes = require('./routes/auth.routes');
 const taskRoutes = require('./routes/task.routes');
-
+const userRoutes = require('./routes/user.routes');
 const app = express();
 
 app.use(cors());
@@ -14,7 +14,7 @@ app.use(express.json());
 // Khai báo các route API
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
-
+app.use('/api/users', userRoutes);
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
