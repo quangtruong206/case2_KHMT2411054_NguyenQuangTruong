@@ -1,333 +1,201 @@
-
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-
 import '../../models/task.dart';
 import '../../services/task_service.dart';
+import '../profile/profile_screen.dart';
 
 class TaskListScreen extends StatefulWidget {
-  const TaskListScreen({super.key});
+  const TaskListScreen({Key? key}) : super(key: key);
 
   @override
-  State<TaskListScreen> createState() =>
-      _TaskListScreenState();
+  State<TaskListScreen> createState() => _TaskListScreenState();
 }
 
 class _TaskListScreenState extends State<TaskListScreen> {
-
-  final TaskService service = TaskService();
-
-  List<Task> tasks = [];
-
-  bool isLoading = true;
-
-  String? errorMessage;
+  final TaskService _taskService = TaskService();
+  late Future<List<Task>> _tasksFuture;
 
   @override
   void initState() {
     super.initState();
-    loadTasks();
+    _refreshTasks();
   }
 
-  // Tải dữ liệu từ MongoDB thông qua API
-  Future<void> loadTasks() async {
-
+  void _refreshTasks() {
     setState(() {
-      isLoading = true;
-      errorMessage = null;
+      _tasksFuture = _taskService.getTasks();
     });
-
-    try {
-
-      final result = await service.getTasks();
-
-      if (!mounted) return;
-
-      setState(() {
-        tasks = result;
-        isLoading = false;
-      });
-
-    } catch (e) {
-
-      if (!mounted) return;
-
-      setState(() {
-        errorMessage = e.toString();
-        isLoading = false;
-      });
-
-    }
   }
 
-  // Hiển thị màu trạng thái
-  Color getStatusColor(String status) {
+  void _showAddTaskDialog() {
+    final titleController = TextEditingController();
+    final descController = TextEditingController();
 
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green;
-
-      case 'inprogress':
-      case 'in_progress':
-        return Colors.blue;
-
-      default:
-        return Colors.orange;
-    }
-  }
-
-  // Hiển thị thẻ công việc
-  Widget buildTaskCard(Task task) {
-
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 12),
-
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Thêm công việc mới'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-
-            Row(
-              children: [
-
-                Expanded(
-                  child: Text(
-                    task.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-
-                const Icon(
-                  Icons.task_alt,
-                  color: Colors.blue,
-                ),
-
-              ],
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              task.description.isEmpty
-                  ? 'Không có mô tả'
-                  : task.description,
-              style: const TextStyle(
-                color: Colors.black54,
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Tên công việc',
+                border: OutlineInputBorder(),
               ),
             ),
-
             const SizedBox(height: 12),
-
-            Row(
-              children: [
-
-                const Icon(
-                  Icons.flag,
-                  size: 18,
-                ),
-
-                const SizedBox(width: 5),
-
-                Text(
-                  'Ưu tiên: ${task.priorityLabel}',
-                ),
-
-              ],
-            ),
-
-            const SizedBox(height: 6),
-
-            Row(
-              children: [
-
-                const Icon(
-                  Icons.circle,
-                  size: 12,
-                ),
-
-                const SizedBox(width: 8),
-
-                Text(
-                  'Trạng thái: ${task.statusLabel}',
-                  style: TextStyle(
-                    color: getStatusColor(task.status),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-              ],
-            ),
-
-            if (task.dueDate != null) ...[
-              const SizedBox(height: 6),
-
-              Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                  ),
-
-                  const SizedBox(width: 8),
-
-                  Text(
-                    'Hạn: ${DateFormat('dd/MM/yyyy').format(task.dueDate!)}',
-                  ),
-                ],
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Mô tả',
+                border: OutlineInputBorder(),
               ),
-            ],
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Danh mục: ${task.category}',
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
+              maxLines: 2,
             ),
-
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final title = titleController.text.trim();
+              final desc = descController.text.trim();
+
+              if (title.isNotEmpty) {
+                final success = await _taskService.createTask(title, desc);
+                if (mounted) {
+                  Navigator.pop(context);
+                  if (success) {
+                    _refreshTasks();
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Tạo công việc thất bại!')),
+                    );
+                  }
+                }
+              }
+            },
+            child: const Text('Thêm'),
+          ),
+        ],
       ),
     );
+  }
+
+  void _deleteTask(String id) async {
+    final success = await _taskService.deleteTask(id);
+    if (success) {
+      _refreshTasks();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       appBar: AppBar(
-
-        title: const Text(
-          'TASK MANAGER',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        centerTitle: true,
-
+        title: const Text('Danh Sách Công Việc'),
+        backgroundColor: const Color(0xFF6C5CE7),
+        foregroundColor: Colors.white,
         actions: [
-
           IconButton(
-            onPressed: loadTasks,
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Tải lại',
+            icon: const Icon(Icons.account_circle, size: 28),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
+            },
           ),
-
         ],
       ),
+      body: FutureBuilder<List<Task>>(
+        future: _tasksFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      body: buildBody(),
+          if (snapshot.hasError) {
+            final isAuthError = snapshot.error.toString().contains('UNAUTHORIZED') ||
+                snapshot.error.toString().contains('401');
 
-    );
-  }
-
-  Widget buildBody() {
-
-    // Trạng thái đang tải
-    if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    // Trạng thái lỗi
-    if (errorMessage != null) {
-
-      return Center(
-
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-
-          child: Column(
-
-            mainAxisAlignment: MainAxisAlignment.center,
-
-            children: [
-
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 60,
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                    const SizedBox(height: 16),
+                    Text(
+                      isAuthError
+                          ? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+                          : '${snapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        if (isAuthError) {
+                          await _taskService.logout();
+                          if (mounted) {
+                            Navigator.pushReplacementNamed(context, '/login');
+                          }
+                        } else {
+                          _refreshTasks();
+                        }
+                      },
+                      child: Text(isAuthError ? 'Đăng nhập lại' : 'Thử lại'),
+                    ),
+                  ],
+                ),
               ),
+            );
+          }
 
-              const SizedBox(height: 15),
-
-              Text(
-                errorMessage!,
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 15),
-
-              ElevatedButton(
-                onPressed: loadTasks,
-                child: const Text('Thử lại'),
-              ),
-
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Không có dữ liệu
-    if (tasks.isEmpty) {
-
-      return RefreshIndicator(
-
-        onRefresh: loadTasks,
-
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-
-          children: const [
-
-            SizedBox(height: 200),
-
-            Center(
+          final tasks = snapshot.data ?? [];
+          if (tasks.isEmpty) {
+            return const Center(
               child: Text(
                 'Chưa có công việc nào',
-                style: TextStyle(fontSize: 18),
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => _refreshTasks(),
+            child: ListView.builder(
+              itemCount: tasks.length,
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: ListTile(
+                    title: Text(
+                      task.title,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Text(task.description.isEmpty ? 'Không có mô tả' : task.description),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _deleteTask(task.id),
+                    ),
+                  ),
+                );
+              },
             ),
-
-          ],
-        ),
-      );
-    }
-
-    // Có dữ liệu
-    return RefreshIndicator(
-
-      onRefresh: loadTasks,
-
-      child: ListView.builder(
-
-        physics: const AlwaysScrollableScrollPhysics(),
-
-        padding: const EdgeInsets.all(12),
-
-        itemCount: tasks.length,
-
-        itemBuilder: (context, index) {
-
-          return buildTaskCard(tasks[index]);
-
+          );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddTaskDialog,
+        backgroundColor: const Color(0xFF6C5CE7),
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

@@ -1,46 +1,34 @@
 const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
+const { MongoMemoryServer } = require('mongodb-memory-server');
 
-dotenv.config();
+const authRoutes = require('./routes/auth.routes');
+const taskRoutes = require('./routes/task.routes');
 
 const app = express();
 
+app.use(cors());
 app.use(express.json());
-const taskRoutes =
-  require('./routes/task.routes');
-const authRoutes = require('./routes/auth.routes');
 
+// Khai báo các route API
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Task Manager API is running',
-  });
-});
-
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('MongoDB connected');
-  })
-  .catch((error) => {
-    console.error(
-      'MongoDB connection error:',
-      error
-    );
-  });
-
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Task Manager API is running',
-  });
-});
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log(
-    `Server running on port ${PORT}`
-  );
-});
+const startServer = async () => {
+  try {
+    const mongoServer = await MongoMemoryServer.create();
+    const mongoUri = mongoServer.getUri();
+
+    await mongoose.connect(mongoUri);
+    console.log('MongoDB Connected (In-Memory)...');
+
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+  }
+};
+
+startServer();
