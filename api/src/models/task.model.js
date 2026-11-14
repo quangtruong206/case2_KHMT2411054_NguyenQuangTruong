@@ -1,16 +1,12 @@
+
 const mongoose = require('mongoose');
 
 const taskSchema = new mongoose.Schema(
   {
-     user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    }, 
-    
     title: {
       type: String,
       required: true,
+      trim: true,
     },
 
     description: {
@@ -18,25 +14,50 @@ const taskSchema = new mongoose.Schema(
       default: '',
     },
 
-    category: {
-      type: String,
-      default: 'Other',
+    // Người tạo công việc
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
     },
 
-    priority: {
-      type: String,
-      enum: ['Low', 'Medium', 'High'],
-      default: 'Medium',
+    // Danh sách người được giao
+    assigneeIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+      },
+    ],
+
+    // Người phụ trách chính
+    primaryAssigneeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
     },
 
-    status: {
-      type: String,
-      enum: ['Pending', 'InProgress', 'Completed'],
-      default: 'Pending',
+    // Ngày bắt đầu
+    startDate: {
+      type: Date,
+      default: null,
     },
 
+    // Hạn hoàn thành
     dueDate: {
       type: Date,
+      default: null,
+    },
+
+    // Mức độ ưu tiên
+    priority: {
+      type: String,
+      enum: ['low', 'medium', 'high'],
+      default: 'medium',
+    },
+
+    // Trạng thái công việc
+    status: {
+      type: String,
+      enum: ['todo', 'in_progress', 'completed'],
+      default: 'todo',
     },
   },
   {

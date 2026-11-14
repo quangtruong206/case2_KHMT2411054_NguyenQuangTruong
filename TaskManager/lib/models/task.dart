@@ -1,3 +1,4 @@
+
 class Task {
   final String id;
   final String title;
@@ -5,6 +6,7 @@ class Task {
   final String category;
   final String priority;
   final String status;
+  final DateTime? startDate;
   final DateTime? dueDate;
 
   Task({
@@ -14,6 +16,7 @@ class Task {
     required this.category,
     required this.priority,
     required this.status,
+    this.startDate,
     this.dueDate,
   });
 
@@ -23,27 +26,28 @@ class Task {
       title: json['title']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       category: json['category']?.toString() ?? 'Other',
-      priority: json['priority']?.toString() ?? 'Medium',
-      status: json['status']?.toString() ?? 'Pending',
+      priority: json['priority']?.toString() ?? 'medium',
+      status: json['status']?.toString() ?? 'todo',
+      startDate: json['startDate'] == null
+          ? null
+          : DateTime.tryParse(json['startDate'].toString()),
       dueDate: json['dueDate'] == null
           ? null
           : DateTime.tryParse(json['dueDate'].toString()),
     );
   }
 
-  // BỔ SUNG: Chuyển đối tượng Task thành Map/JSON để gửi lên API khi cần
   Map<String, dynamic> toJson() {
     return {
       'title': title,
       'description': description,
-      'category': category,
-      'priority': priority,
-      'status': status,
+      'priority': priority.toLowerCase(),
+      'status': status.toLowerCase(),
+      'startDate': startDate?.toIso8601String(),
       'dueDate': dueDate?.toIso8601String(),
     };
   }
 
-  // BỔ SUNG: Kiểm tra nhanh công việc đã xong hay chưa
   bool get isCompleted => status.toLowerCase() == 'completed';
 
   String get statusLabel {
