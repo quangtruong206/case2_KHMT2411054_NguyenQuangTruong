@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'task_collaboration_screen.dart';
 import '../../models/task.dart';
 import '../../services/task_service.dart';
+import 'task_activity_section.dart';
 import '../profile/profile_screen.dart';
 
 class TaskListScreen extends StatefulWidget {
@@ -921,6 +922,11 @@ class _TaskListScreenState extends State<TaskListScreen> {
                                 _formatDate(item.dueDate),
                                 Icons.event_available_outlined,
                               ),
+
+                              const SizedBox(height: 22),
+
+
+                              TaskActivitySection(taskId: item.id),
                             ],
                           ),
                         ),

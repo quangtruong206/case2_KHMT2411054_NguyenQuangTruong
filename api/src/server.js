@@ -9,7 +9,7 @@ const authRoutes = require('./routes/auth.routes');
 const taskRoutes = require('./routes/task.routes');
 const userRoutes = require('./routes/user.routes');
 const notificationRoutes = require('./routes/notification.routes');
-
+const statisticsRoutes = require('./routes/statistics.routes');
 const app = express();
 
 app.use(cors());
@@ -20,7 +20,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
-
+app.use('/api/statistics', statisticsRoutes);
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {

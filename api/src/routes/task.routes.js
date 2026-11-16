@@ -19,6 +19,9 @@ router.post('/:id/shares', taskController.shareTask);
 router.patch('/:id/shares/:userId', taskController.updateSharePermission);
 router.delete('/:id/shares/:userId', taskController.removeTaskShare);
 
+// Lịch sử hoạt động
+router.get('/:id/activities', taskController.getTaskActivities);
+
 // Chi tiết và thao tác công việc
 router.get('/:id', taskController.getTaskById);
 router.put('/:id', taskController.updateTask);

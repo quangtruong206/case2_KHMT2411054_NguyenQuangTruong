@@ -6,6 +6,7 @@ import '../../models/task.dart';
 import '../../services/task_service.dart';
 import '../profile/profile_screen.dart';
 import 'task_list_screen.dart';
+import 'statistics_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,6 +21,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   late Future<List<Task>> _tasksFuture;
   int _unreadCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -332,7 +334,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildProgressCard(List<Task> tasks) {
     final theme = Theme.of(context);
     final total = tasks.length;
-    final completed = tasks.where((task) => task.isCompleted).length;
+    final completed = tasks
+        .where((task) => task.isCompleted)
+        .length;
     final progress = total == 0 ? 0.0 : completed / total;
     final percentage = (progress * 100).round();
 
@@ -530,10 +534,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildDashboardContent(List<Task> tasks) {
     final total = tasks.length;
-    final completed = tasks.where((task) => task.isCompleted).length;
-    final inProgress = tasks.where(_isInProgress).length;
-    final overdue = tasks.where(_isOverdue).length;
-    final upcoming = tasks.where(_isUpcoming).length;
+    final completed = tasks
+        .where((task) => task.isCompleted)
+        .length;
+    final inProgress = tasks
+        .where(_isInProgress)
+        .length;
+    final overdue = tasks
+        .where(_isOverdue)
+        .length;
+    final upcoming = tasks
+        .where(_isUpcoming)
+        .length;
 
     final recentTasks = tasks.take(5).toList();
 
@@ -602,7 +614,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                     side: BorderSide(
-                      color: Theme.of(context)
+                      color: Theme
+                          .of(context)
                           .dividerColor
                           .withValues(alpha: 0.3),
                     ),
@@ -658,7 +671,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           Icon(
                             Icons.inbox_outlined,
                             size: 45,
-                            color: Theme.of(context)
+                            color: Theme
+                                .of(context)
                                 .colorScheme
                                 .onSurface
                                 .withValues(alpha: 0.4),
@@ -668,7 +682,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           const SizedBox(height: 5),
                           Text(
                             'Hãy tạo công việc đầu tiên của bạn.',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            style: Theme
+                                .of(context)
+                                .textTheme
+                                .bodySmall,
                           ),
                         ],
                       ),
@@ -694,6 +711,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  height: 52,
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _openStatistics,
+                    icon: const Icon(Icons.bar_chart_rounded),
+                    label: const Text('XEM THỐNG KÊ CÔNG VIỆC'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF7567F8),
+                      side: const BorderSide(
+                        color: Color(0xFF7567F8),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -711,6 +749,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openStatistics() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const StatisticsScreen(),
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(

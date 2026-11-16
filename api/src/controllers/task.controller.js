@@ -1,10 +1,11 @@
-
+﻿
 const mongoose = require('mongoose');
 
 const Task = require('../models/task.model');
 const User = require('../models/user.model');
 const TaskShare = require('../models/taskShare.model');
 const Notification = require('../models/notification.model');
+const TaskActivity = require('../models/taskActivity.model');
 const getUserId = (req) => {
   const data = req.userData || req.user || {};
   return data.userId || data.id || data._id;
@@ -177,6 +178,15 @@ exports.createTask = async (req, res) => {
       primaryAssigneeId: null,
     });
 
+    await TaskActivity.create({
+      taskId: task._id,
+      userId,
+      action: 'create',
+      details: {
+        title: task.title,
+        message: 'Đã tạo công việc',
+      },
+    });
     return res.status(201).json({
       message: 'Tạo công việc thành công',
       task,
@@ -267,35 +277,64 @@ exports.updateTask = async (req, res) => {
     if (updateData.title !== undefined) {
       updateData.title = String(updateData.title).trim();
     }
-const updatedTask = await Task.findByIdAndUpdate(
-  task._id,
-  updateData,
-  { new: true, runValidators: true }
-);
+    const updatedTask = await Task.findByIdAndUpdate(
+      task._id,
+      updateData,
+      { new: true, runValidators: true }
+    );
 
-// Chỉ gửi thông báo nếu có nội dung thực sự thay đổi
-if (Object.keys(updateData).length > 0) {
-  const recipientIds = await getTaskRecipientIds(task);
+    const changedFields = Object.keys(updateData).filter((field) => {
+      return String(task[field] ?? '') !== String(updatedTask[field] ?? '');
+    });
 
-  const statusChanged =
-    updateData.status !== undefined &&
-    updateData.status !== task.status;
+    if (changedFields.length > 0) {
+      const changes = {};
 
-  await createTaskNotifications({
-    task,
-    senderId: userId,
-    recipientIds,
-    type: statusChanged ? 'task_status_changed' : 'task_updated',
-    title: statusChanged
-      ? 'Trạng thái công việc đã thay đổi'
-      : 'Công việc vừa được cập nhật',
-    message: statusChanged
-      ? `Trạng thái công việc "${task.title}" đã được thay đổi thành ${updateData.status}`
-      : `Công việc "${task.title}" vừa được cập nhật`,
-  });
-}
+      for (const field of changedFields) {
+        changes[field] = {
+          oldValue: task[field] ?? null,
+          newValue: updatedTask[field] ?? null,
+        };
+      }
 
-return res.status(200).json({
+      const statusChanged = changedFields.includes('status');
+
+      await TaskActivity.create({
+        taskId: task._id,
+        userId,
+        action: statusChanged ? 'status_change' : 'update',
+        details: {
+          title: updatedTask.title,
+          changedFields,
+          changes,
+          message: 'Đã cập nhật công việc',
+        },
+      });
+    }
+
+    // Chỉ gửi thông báo nếu có nội dung thực sự thay đổi
+    if (Object.keys(updateData).length > 0) {
+      const recipientIds = await getTaskRecipientIds(task);
+
+      const statusChanged =
+        updateData.status !== undefined &&
+        updateData.status !== task.status;
+
+      await createTaskNotifications({
+        task,
+        senderId: userId,
+        recipientIds,
+        type: statusChanged ? 'task_status_changed' : 'task_updated',
+        title: statusChanged
+          ? 'Trạng thái công việc đã thay đổi'
+          : 'Công việc vừa được cập nhật',
+        message: statusChanged
+          ? `Trạng thái công việc "${task.title}" đã được thay đổi thành ${updateData.status}`
+          : `Công việc "${task.title}" vừa được cập nhật`,
+      });
+    }
+
+    return res.status(200).json({
       message: 'Cập nhật công việc thành công',
       task: updatedTask,
     });
@@ -336,27 +375,46 @@ exports.updateTaskStatus = async (req, res) => {
 
     const oldStatus = task.status;
 
-const updatedTask = await Task.findByIdAndUpdate(
-  task._id,
-  { status },
-  { new: true, runValidators: true }
-);
+    const updatedTask = await Task.findByIdAndUpdate(
+      task._id,
+      { status },
+      { new: true, runValidators: true }
+    );
 
-// Chỉ gửi thông báo khi trạng thái thực sự thay đổi
-if (oldStatus !== status) {
-  const recipientIds = await getTaskRecipientIds(task);
+    if (oldStatus !== status) {
+      await TaskActivity.create({
+        taskId: task._id,
+        userId,
+        action: 'status_change',
+        details: {
+          title: updatedTask.title,
+          changedFields: ['status'],
+          changes: {
+            status: {
+              oldValue: oldStatus,
+              newValue: status,
+            },
+          },
+          message: 'Đã thay đổi trạng thái công việc',
+        },
+      });
+    }
 
-  await createTaskNotifications({
-    task,
-    senderId: userId,
-    recipientIds,
-    type: 'task_status_changed',
-    title: 'Trạng thái công việc đã thay đổi',
-    message: `Công việc "${task.title}" đã chuyển sang trạng thái ${status}`,
-  });
-}
+    // Chỉ gửi thông báo khi trạng thái thực sự thay đổi
+    if (oldStatus !== status) {
+      const recipientIds = await getTaskRecipientIds(task);
 
-return res.status(200).json({
+      await createTaskNotifications({
+        task,
+        senderId: userId,
+        recipientIds,
+        type: 'task_status_changed',
+        title: 'Trạng thái công việc đã thay đổi',
+        message: `Công việc "${task.title}" đã chuyển sang trạng thái ${status}`,
+      });
+    }
+
+    return res.status(200).json({
       message: 'Cập nhật trạng thái thành công',
       task: updatedTask,
     });
@@ -367,7 +425,6 @@ return res.status(200).json({
     });
   }
 };
-
 // 6. Xóa công việc
 exports.deleteTask = async (req, res) => {
   try {
@@ -453,27 +510,61 @@ exports.assignUsers = async (req, res) => {
       });
     }
 
-    // Chỉ thông báo cho người mới được phân công
-const oldAssigneeIds = (task.assigneeIds || []).map(id => String(id));
+        // Lưu thông tin phân công cũ để ghi lịch sử
+    const oldAssigneeIds = (task.assigneeIds || []).map(id => String(id));
+    const oldPrimaryAssigneeId = task.primaryAssigneeId
+      ? String(task.primaryAssigneeId)
+      : null;
 
-const newAssigneeIds = uniqueIds.filter(
-  id => !oldAssigneeIds.includes(String(id))
-);
+    // Xác định những người mới được phân công
+    const newAssigneeIds = uniqueIds.filter(
+      id => !oldAssigneeIds.includes(String(id))
+    );
 
-task.assigneeIds = uniqueIds;
-task.primaryAssigneeId = primaryAssigneeId || null;
+    // Cập nhật danh sách người được giao
+    task.assigneeIds = uniqueIds;
+    task.primaryAssigneeId = primaryAssigneeId || null;
 
-await task.save();
+    await task.save();
 
-// Tạo thông báo cho người mới được giao việc
-await createTaskNotifications({
-  task,
-  senderId: userId,
-  recipientIds: newAssigneeIds,
-  type: 'task_assigned',
-  title: 'Bạn được phân công công việc mới',
-  message: `Bạn vừa được phân công công việc: ${task.title}`,
-});
+    // Kiểm tra thay đổi trong phân công
+    const assigneesChanged =
+      JSON.stringify([...oldAssigneeIds].sort()) !==
+      JSON.stringify([...uniqueIds].sort());
+
+    const newPrimaryAssigneeId = primaryAssigneeId
+      ? String(primaryAssigneeId)
+      : null;
+
+    const primaryAssigneeChanged =
+      oldPrimaryAssigneeId !== newPrimaryAssigneeId;
+
+    // Ghi lịch sử hoạt động
+    if (assigneesChanged || primaryAssigneeChanged) {
+      await TaskActivity.create({
+        taskId: task._id,
+        userId,
+        action: 'assign',
+        details: {
+          title: task.title,
+          oldAssigneeIds,
+          newAssigneeIds: uniqueIds,
+          oldPrimaryAssigneeId,
+          newPrimaryAssigneeId,
+          message: 'Đã thay đổi phân công công việc',
+        },
+      });
+    }
+
+    // Tạo thông báo cho người mới được giao việc
+    await createTaskNotifications({
+      task,
+      senderId: userId,
+      recipientIds: newAssigneeIds,
+      type: 'task_assigned',
+      title: 'Bạn được phân công công việc mới',
+      message: `Bạn vừa được phân công công việc: ${task.title}`,
+    });
 
     const updatedTask = await Task.findById(task._id)
       .populate('assigneeIds', 'fullName name email')
@@ -577,17 +668,32 @@ exports.shareTask = async (req, res) => {
     )
       .populate('userId', 'fullName name email')
       .populate('sharedBy', 'fullName name email');
-// Chỉ gửi thông báo khi chia sẻ lần đầu
-if (!existingShare) {
-  await createTaskNotifications({
-    task,
-    senderId: userId,
-    recipientIds: [targetUserId],
-    type: 'task_shared',
-    title: 'Bạn được chia sẻ công việc',
-    message: `Bạn vừa được chia sẻ công việc: ${task.title}`,
-  });
-}
+    // Ghi lịch sử chia sẻ công việc
+    await TaskActivity.create({
+      taskId: task._id,
+      userId,
+      action: 'share',
+      details: {
+        targetUserId,
+        permission,
+        isNewShare: !existingShare,
+        message: existingShare
+          ? 'Đã cập nhật thông tin chia sẻ công việc'
+          : 'Đã chia sẻ công việc',
+      },
+    });
+
+    // Chỉ gửi thông báo khi chia sẻ lần đầu
+    if (!existingShare) {
+      await createTaskNotifications({
+        task,
+        senderId: userId,
+        recipientIds: [targetUserId],
+        type: 'task_shared',
+        title: 'Bạn được chia sẻ công việc',
+        message: `Bạn vừa được chia sẻ công việc: ${task.title}`,
+      });
+    }
     return res.status(200).json({
       message: 'Chia sẻ công việc thành công',
       share,
@@ -646,7 +752,20 @@ const share = await TaskShare.findByIdAndUpdate(
 ).populate('userId', 'fullName name email');
 
 // Chỉ thông báo khi quyền thực sự thay đổi
+// Chỉ ghi lịch sử và gửi thông báo khi quyền thực sự thay đổi
 if (oldPermission !== permission) {
+  await TaskActivity.create({
+    taskId: task._id,
+    userId,
+    action: 'permission_change',
+    details: {
+      targetUserId: req.params.userId,
+      oldPermission,
+      newPermission: permission,
+      message: 'Đã thay đổi quyền chia sẻ công việc',
+    },
+  });
+
   await createTaskNotifications({
     task,
     senderId: userId,
@@ -703,6 +822,16 @@ exports.removeTaskShare = async (req, res) => {
         message: 'Không tìm thấy thông tin chia sẻ',
       });
     }
+        await TaskActivity.create({
+      taskId: task._id,
+      userId,
+      action: 'remove_share',
+      details: {
+        targetUserId: req.params.userId,
+        oldPermission: deleted.permission,
+        message: 'Đã thu hồi quyền chia sẻ công việc',
+      },
+    });
 
     return res.status(200).json({
       message: 'Đã thu hồi quyền chia sẻ',
@@ -711,6 +840,38 @@ exports.removeTaskShare = async (req, res) => {
     console.error('Lỗi thu hồi chia sẻ:', error);
     return res.status(500).json({
       message: 'Không thể thu hồi quyền chia sẻ',
+    });
+  }
+};// 12. Xem lịch sử hoạt động của công việc
+exports.getTaskActivities = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+
+    // Kiểm tra quyền truy cập công việc
+    const { task } = await getTaskAccess(req.params.id, userId);
+
+    if (!task) {
+      return res.status(404).json({
+        message: 'Không tìm thấy công việc',
+      });
+    }
+
+    // Lấy lịch sử hoạt động, mới nhất trước
+    const activities = await TaskActivity.find({
+      taskId: task._id,
+    })
+      .populate('userId', 'fullName name email')
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: 'Lấy lịch sử hoạt động thành công',
+      activities,
+    });
+  } catch (error) {
+    console.error('Lỗi lấy lịch sử hoạt động:', error);
+
+    return res.status(500).json({
+      message: 'Không thể lấy lịch sử hoạt động',
     });
   }
 };
