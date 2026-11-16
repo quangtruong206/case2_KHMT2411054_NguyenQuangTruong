@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
-
+import '../../services/notification_service.dart';
+import '../notifications/notification_screen.dart';
 import '../../models/task.dart';
 import '../../services/task_service.dart';
 import '../profile/profile_screen.dart';
@@ -15,13 +16,41 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final TaskService _taskService = TaskService();
+  final NotificationService _notificationService = NotificationService();
 
   late Future<List<Task>> _tasksFuture;
-
+  int _unreadCount = 0;
   @override
   void initState() {
     super.initState();
     _loadTasks();
+    _loadUnreadCount();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    try {
+      final count = await _notificationService.getUnreadCount();
+
+      if (!mounted) return;
+
+      setState(() {
+        _unreadCount = count;
+      });
+    } catch (error) {
+      debugPrint('Không thể tải số thông báo chưa đọc: $error');
+    }
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const NotificationScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+    _loadUnreadCount();
   }
 
   void _loadTasks() {
@@ -33,7 +62,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _refresh() async {
     setState(_loadTasks);
-    await _tasksFuture;
+
+    await Future.wait([
+      _tasksFuture,
+      _loadUnreadCount(),
+    ]);
   }
 
   bool _isInProgress(Task task) {
@@ -95,6 +128,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return const Color(0xFFFFB547);
   }
 
+
   Widget _buildHeader(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
@@ -155,6 +189,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+
+              // Nút thông báo
+              Material(
+                color: Colors.white.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(17),
+                child: IconButton(
+                  tooltip: 'Thông báo',
+                  onPressed: _openNotifications,
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(
+                        Icons.notifications_none_rounded,
+                        color: Colors.white,
+                        size: 27,
+                      ),
+                      if (_unreadCount > 0)
+                        Positioned(
+                          right: -7,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            constraints: const BoxConstraints(
+                              minWidth: 17,
+                              minHeight: 17,
+                            ),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFFF647C),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              _unreadCount > 99 ? '99+' : '$_unreadCount',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 9),
+
+              // Nút tài khoản
               Material(
                 color: Colors.white.withValues(alpha: 0.16),
                 borderRadius: BorderRadius.circular(17),
@@ -178,27 +261,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 22),
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_today_rounded,
-                color: Colors.white70,
-                size: 15,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _formatDate(DateTime.now()),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
+
 
   Widget _buildStatCard({
     required String title,
