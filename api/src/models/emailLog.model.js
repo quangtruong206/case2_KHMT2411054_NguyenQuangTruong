@@ -22,6 +22,11 @@ const emailLogSchema = new mongoose.Schema(
       lowercase: true,
     },
 
+    // Khóa chống gửi email nhắc hạn trùng lặp
+    reminderKey: {
+      type: String,
+      default: undefined,
+    },
     eventType: {
       type: String,
       required: true,
@@ -68,5 +73,12 @@ const emailLogSchema = new mongoose.Schema(
 
 emailLogSchema.index({ taskId: 1, createdAt: -1 });
 emailLogSchema.index({ recipientEmail: 1, createdAt: -1 });
+emailLogSchema.index(
+  { reminderKey: 1 },
+  {
+    unique: true,
+    sparse: true,
+  }
+);
 
 module.exports = mongoose.model('EmailLog', emailLogSchema);

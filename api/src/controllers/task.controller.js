@@ -5,6 +5,7 @@ const Task = require('../models/task.model');
 const User = require('../models/user.model');
 const TaskShare = require('../models/taskShare.model');
 const Notification = require('../models/notification.model');
+const { sendTaskEmail } = require('../services/emailNotification.service');
 const getUserId = (req) => {
   const data = req.userData || req.user || {};
   return data.userId || data.id || data._id;
@@ -293,6 +294,28 @@ if (Object.keys(updateData).length > 0) {
       ? `Trạng thái công việc "${task.title}" đã được thay đổi thành ${updateData.status}`
       : `Công việc "${task.title}" vừa được cập nhật`,
   });
+
+  // Gửi email cho những người liên quan, trừ người cập nhật
+  const emailEventType =
+    statusChanged && updateData.status === 'completed'
+      ? 'task_completed'
+      : 'task_updated';
+
+  const emailRecipients = await User.find({
+    _id: { $in: recipientIds },
+  }).select('fullName name email');
+
+  await Promise.all(
+    emailRecipients
+      .filter(recipient => String(recipient._id) !== String(userId))
+      .map(recipient =>
+        sendTaskEmail({
+          task: updatedTask || task,
+          recipient,
+          eventType: emailEventType,
+        })
+      )
+  );
 }
 
 return res.status(200).json({
@@ -354,6 +377,26 @@ if (oldStatus !== status) {
     title: 'Trạng thái công việc đã thay đổi',
     message: `Công việc "${task.title}" đã chuyển sang trạng thái ${status}`,
   });
+
+// Gửi email cho những người liên quan, trừ người đổi trạng thái
+const emailRecipients = await User.find({
+  _id: { $in: recipientIds },
+}).select('fullName name email');
+
+const emailEventType =
+  status === 'completed' ? 'task_completed' : 'task_updated';
+
+await Promise.all(
+  emailRecipients
+    .filter(recipient => String(recipient._id) !== String(userId))
+    .map(recipient =>
+      sendTaskEmail({
+        task: updatedTask || task,
+        recipient,
+        eventType: emailEventType,
+      })
+    )
+);
 }
 
 return res.status(200).json({
@@ -475,6 +518,23 @@ await createTaskNotifications({
   message: `Bạn vừa được phân công công việc: ${task.title}`,
 });
 
+// Gửi email cho những người mới được phân công
+if (newAssigneeIds.length > 0) {
+  const newAssignees = await User.find({
+    _id: { $in: newAssigneeIds },
+  }).select('fullName name email');
+
+  await Promise.all(
+    newAssignees.map(recipient =>
+      sendTaskEmail({
+        task,
+        recipient,
+        eventType: 'task_assigned',
+      })
+    )
+  );
+}
+
     const updatedTask = await Task.findById(task._id)
       .populate('assigneeIds', 'fullName name email')
       .populate('primaryAssigneeId', 'fullName name email');
@@ -586,6 +646,13 @@ if (!existingShare) {
     type: 'task_shared',
     title: 'Bạn được chia sẻ công việc',
     message: `Bạn vừa được chia sẻ công việc: ${task.title}`,
+  });
+
+  // Gửi email khi chia sẻ công việc lần đầu
+  await sendTaskEmail({
+    task,
+    recipient: targetUser,
+    eventType: 'task_shared',
   });
 }
     return res.status(200).json({

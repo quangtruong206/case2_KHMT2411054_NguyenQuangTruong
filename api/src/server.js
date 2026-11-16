@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth.routes');
 const taskRoutes = require('./routes/task.routes');
 const userRoutes = require('./routes/user.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const { startReminderScheduler } = require('./services/emailReminder.service');
 
 const app = express();
 
@@ -30,6 +31,8 @@ const startServer = async () => {
 
     await mongoose.connect(mongoUri);
     console.log('MongoDB Connected (In-Memory)...');
+
+    startReminderScheduler();
 
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
